@@ -1,6 +1,9 @@
+import 'dart:convert';
+
 import 'package:flutter/material.dart';
 import 'package:shopping_list/data/categories.dart';
 import 'package:shopping_list/models/category.dart';
+import 'package:http/http.dart' as http;
 import 'package:shopping_list/models/grocery_item.dart';
 
 class NewItem extends StatefulWidget {
@@ -16,23 +19,60 @@ class _NewItemState extends State<NewItem> {
   var _enteredName = '';
   var _enteredQuantity = 1;
   var _selectedCategory = categories[Categories.vegetables]!;
+  var _isSending = false;
 
-  void _saveItem(){
+  void _saveItem() async{
 
     if (_formKey.currentState!.validate()) {
       _formKey.currentState!.save();
+      setState(() {
+        _isSending= true;
+      });
+
+      final url = Uri.https(
+        'shopping-list-course-82756-default-rtdb.firebaseio.com',
+        'shopping-list.json'
+      );
+
+      final response = await http.post(
+        url,
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: json.encode({
+          'name': _enteredName, 
+          'quantity': _enteredQuantity, 
+          'category': _selectedCategory.name
+        })
+      );
+
+      print('``````````the response.body is ${response.body}');
+      // ``````````the response.body is {"name":"-O1bF9p3XSzmtLGhNPt6"}
+
+      final Map<String, dynamic> resData = json.decode(response.body);
+
+      if (!context.mounted) {
+        return;
+      }
+      
       Navigator.of(context).pop(
         GroceryItem(
-          id: DateTime.now().toString(), 
+          id: resData['name'], 
           name: _enteredName, 
           quantity: _enteredQuantity, 
           category: _selectedCategory
         )
       );
+      // Navigator.of(context).pop(
+      //   GroceryItem(
+      //     id: DateTime.now().toString(), 
+      //     name: _enteredName, 
+      //     quantity: _enteredQuantity, 
+      //     category: _selectedCategory
+      //   )
+      // );
     }
-    print("~~~~~~~~ ${_enteredName} ~~~~~~~~");
-    print("~~~~~~~~ ${_enteredQuantity} ~~~~~~~~");
-    print("~~~~~~~~ ${_selectedCategory} ~~~~~~~~");
+    
   }
 
   @override
@@ -128,14 +168,16 @@ class _NewItemState extends State<NewItem> {
                 mainAxisAlignment: MainAxisAlignment.end,
                 children: [
                   TextButton(
-                    onPressed: (){
+                    onPressed: _isSending ? null : (){
                       _formKey.currentState!.reset();
                     }, 
                     child: const Text('Annuler')
                   ),
                   ElevatedButton(
-                    onPressed: _saveItem, 
-                    child: const Text("Ajouter")
+                    onPressed: _isSending ? null : _saveItem, // Ajouter pour que quand on envoie et que sa charge on ne puisse pas re-envoyer
+                    child: _isSending ? 
+                      const SizedBox(height: 16, width: 16, child: CircularProgressIndicator(),) 
+                    : const Text("Ajouter")
                   )
                 ],
               )
