@@ -33,40 +33,57 @@ class _GroceryListState extends State<GroceryList> {
       'shopping-list-course-82756-default-rtdb.firebaseio.com',
       'shopping-list.json'
     );
-    final response = await http.get(url);
 
-    if (response.statusCode >= 400) {
+    try {
+      
+      final response = await http.get(url);
+
+      if (response.statusCode >= 400) {
+        setState(() {
+          _error = 'Erreur lors de la recuperation des données. Réessayé plus tard.';
+        });
+        
+      }
+
+      if (response.body == 'null') {
+        setState(() {
+          _isLoading = false;
+        });
+        return;
+      }
+
+      final Map<String, dynamic> listData = json.decode(response.body);
+      final List<GroceryItem> loadedItems = [];
+      for (final item in listData.entries) {
+
+        // Vue que dans mon GroceryItem category est la class Category et que firebase ne me ramene que le titre 
+        // donc avec le titre j'effectue une recherche qui match avec le titre pour retourner la valeur
+        final categori = categories.entries.firstWhere(
+          (catItem) => catItem.value.name == item.value['category']
+        ).value;
+
+        loadedItems.add(
+          GroceryItem(
+            id: item.key, 
+            name: item.value['name'], 
+            quantity: item.value['quantity'], 
+            category: categori
+          )
+        );
+      }
+
       setState(() {
-        _error = 'Erreur lors de la recuperation des données. Réessayé plus tard.';
+        _groceryItems = loadedItems;
+        _isLoading = false;
+      });
+    
+    } catch (e) {
+      setState(() {
+        _error = "Une erreur s'est produite ! Réessayé plus tard.";
       });
       
     }
 
-    final Map<String, dynamic> listData = json.decode(response.body);
-    final List<GroceryItem> loadedItems = [];
-    for (final item in listData.entries) {
-
-      // Vue que dans mon GroceryItem category est la class Category et que firebase ne me ramene que le titre 
-      // donc avec le titre j'effectue une recherche qui match avec le titre pour retourner la valeur
-      final categori = categories.entries.firstWhere(
-        (catItem) => catItem.value.name == item.value['category']
-      ).value;
-
-      loadedItems.add(
-        GroceryItem(
-          id: item.key, 
-          name: item.value['name'], 
-          quantity: item.value['quantity'], 
-          category: categori
-        )
-      );
-    }
-
-    setState(() {
-      _groceryItems = loadedItems;
-      _isLoading = false;
-    });
-    
   }
 
   void _addItem () async {
@@ -85,10 +102,34 @@ class _GroceryListState extends State<GroceryList> {
     });
   }
 
-  void _removeItem(GroceryItem item){
+  void _removeItem(GroceryItem item) async{
+    final index = _groceryItems.indexOf(item);
     setState (() {
       _groceryItems.remove(item);
     });
+
+    final url = Uri.https(
+      'shopping-list-course-82756-default-rtdb.firebaseio.com',
+      'shopping-list/${item.id}.json'
+    );
+    final response = await http.delete(url);
+
+    if (response.statusCode >= 400) {
+
+      ScaffoldMessenger.of(context).clearSnackBars();
+        ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text("Une Erreur c'est produite lors de la supppresion."),
+          duration: Duration(seconds: 3),
+        )
+      );
+
+      setState(() {
+        _groceryItems.insert(index, item);
+      });
+      
+    }
+
   }
 
   @override
